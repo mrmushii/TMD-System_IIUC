@@ -19,9 +19,7 @@ const AdminDashboard = ({ currentUser, onLogout }) => {
           <p className="text-lg text-gray-700 mb-4">
             Welcome, <span className="font-semibold">{currentUser?.name || currentUser?.$id}</span>!
           </p>
-          <p className="text-md text-gray-600 mb-6">
-            User ID: <span className="font-mono text-sm bg-gray-100 p-1 rounded">{currentUser?.$id}</span>
-          </p>
+          
           {currentUser?.labels && currentUser.labels.length > 0 && (
               <p className="text-sm text-gray-500 mb-4">
                   Roles: {currentUser.labels.join(', ')}
