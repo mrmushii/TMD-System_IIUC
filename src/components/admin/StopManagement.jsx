@@ -13,7 +13,42 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 // Icons
 import { Pencil, Trash2, PlusCircle, MapPin, X, Loader2 } from 'lucide-react';
 
-// --- Reusable Sub-components ---
+// --- Predefined list of common stops and their coordinates ---
+const predefinedStops = [
+    // Existing Stops
+    { name: 'IIUC Campus', coordinates: '22.492308, 91.717350' },
+    { name: 'Kumira', coordinates: '22.4496, 91.8025' },
+    { name: 'Bhatiari', coordinates: '22.442242, 91.736589' },
+    { name: 'City Gate', coordinates: '22.3853, 91.7842' },
+    { name: 'AK Khan', coordinates: '22.3789, 91.7908' },
+    { name: 'GEC Circle', coordinates: '22.3590, 91.8211' },
+    { name: '2 Number Gate', coordinates: '22.3639, 91.8249' },
+    { name: 'Muradpur', coordinates: '22.3658, 91.8374' },
+    { name: 'Chawkbazar', coordinates: '22.3524, 91.8344' },
+    { name: 'New Market', coordinates: '22.3366, 91.8329' },
+    { name: 'Agrabad', coordinates: '22.3276, 91.8083' },
+    { name: 'Bahaddarhat', coordinates: '22.3675, 91.8491' },
+    { name: 'Baroiyarhat', coordinates: '22.6583, 91.5458' },
+    { name: 'Hathazari College', coordinates: '22.5080, 91.8095' },
+    { name: 'Dider Market', coordinates: '22.3680, 91.8320' },
+    { name: 'Miler matha', coordinates: '22.3600, 91.8150' },
+    { name: 'Navy Hospital Gate', coordinates: '22.3550, 91.8100' },
+    { name: 'BOT', coordinates: '22.3160, 91.8450' },
+    { name: 'Shah Amanath', coordinates: '22.3080, 91.8430' },
+    { name: 'Chatteswari', coordinates: '22.3555, 91.8155' },
+    { name: 'Oxyzen', coordinates: '22.3880, 91.8340' },
+    { name: 'Lucky Plaza', coordinates: '22.3595, 91.8220' },
+    { name: 'Kaptai Rastar Matha', coordinates: '22.3750, 91.8550' },
+    { name: 'KoibolyoDham', coordinates: '22.3755, 91.8255' },
+    { name: 'CUET', coordinates: '22.4630, 91.9730' },
+    { name: 'Brindrabanhat', coordinates: '22.3450, 91.8400' },
+    { name: 'Kotwali', coordinates: '22.3500, 91.8300' },
+    { name: 'Boropol', coordinates: '22.3810, 91.8200' },
+    { name: 'Mayor goli', coordinates: '22.3605, 91.8235' },
+    { name: 'Link Road', coordinates: '22.386616, 91.786014' },
+];
+
+
 
 const SkeletonRow = () => (
     <TableRow className="animate-pulse">
@@ -21,7 +56,7 @@ const SkeletonRow = () => (
         <TableCell><div className="h-4 bg-gray-200 rounded w-1/2"></div></TableCell>
         <TableCell><div className="h-4 bg-gray-200 rounded w-full"></div></TableCell>
         <TableCell><div className="h-4 bg-gray-200 rounded w-1/4"></div></TableCell>
-        <TableCell><div className="flex space-x-2"><div className="h-8 w-8 bg-gray-200 rounded-full"></div><div className="h-8 w-8 bg-gray-200 rounded-full"></div></div></TableCell>
+        <TableCell><div className="flex justify-end space-x-2"><div className="h-8 w-8 bg-gray-200 rounded-full"></div><div className="h-8 w-8 bg-gray-200 rounded-full"></div></div></TableCell>
     </TableRow>
 );
 
@@ -43,13 +78,20 @@ const StopFormModal = ({ isOpen, onClose, onSave, stop, routes, isSaving }) => {
 
     if (!isOpen) return null;
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
+    const handleSelectChange = (name, value) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
-
-    const handleSelectChange = (value) => {
-        setFormData(prev => ({ ...prev, route_id: value }));
+    
+    // NEW: Handler for when a predefined stop is selected
+    const handleStopSelection = (selectedStopName) => {
+        const selectedStop = predefinedStops.find(s => s.name === selectedStopName);
+        if (selectedStop) {
+            setFormData(prev => ({
+                ...prev,
+                stop_name: selectedStop.name,
+                location_coordinates: selectedStop.coordinates,
+            }));
+        }
     };
 
     const handleSubmit = (e) => {
@@ -70,12 +112,21 @@ const StopFormModal = ({ isOpen, onClose, onSave, stop, routes, isSaving }) => {
                     </CardHeader>
                     <CardContent className="space-y-4 pt-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><Label htmlFor="stop_name">Stop Name</Label><Input id="stop_name" name="stop_name" value={formData.stop_name} onChange={handleChange} required /></div>
-                            <div><Label htmlFor="sequence_no">Sequence No.</Label><Input id="sequence_no" name="sequence_no" type="number" value={formData.sequence_no} onChange={handleChange} required min="1" /></div>
+                            <div>
+                                <Label htmlFor="stop_name_select">Stop Name</Label>
+                                {/* MODIFIED: Changed from Input to Select */}
+                                <Select onValueChange={handleStopSelection} value={formData.stop_name}>
+                                    <SelectTrigger id="stop_name_select"><SelectValue placeholder="Select a predefined stop" /></SelectTrigger>
+                                    <SelectContent>
+                                        {predefinedStops.map(s => <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div><Label htmlFor="sequence_no">Sequence No.</Label><Input id="sequence_no" name="sequence_no" type="number" value={formData.sequence_no} onChange={(e) => handleSelectChange('sequence_no', e.target.value)} required min="1" /></div>
                         </div>
                         <div>
                             <Label htmlFor="route_id">Route</Label>
-                            <Select onValueChange={handleSelectChange} value={formData.route_id} required>
+                            <Select onValueChange={(value) => handleSelectChange('route_id', value)} value={formData.route_id} required>
                                 <SelectTrigger><SelectValue placeholder="Select a Route" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none" disabled>Select a Route</SelectItem>
@@ -85,7 +136,8 @@ const StopFormModal = ({ isOpen, onClose, onSave, stop, routes, isSaving }) => {
                         </div>
                         <div>
                             <Label htmlFor="location_coordinates">Location (Lat, Long)</Label>
-                            <Input id="location_coordinates" name="location_coordinates" value={formData.location_coordinates} onChange={handleChange} placeholder="e.g., 22.345, 91.821" required />
+                            {/* MODIFIED: Made read-only to prevent manual edits */}
+                            <Input id="location_coordinates" name="location_coordinates" value={formData.location_coordinates} placeholder="Select a stop to populate" readOnly className="bg-gray-100" />
                         </div>
                     </CardContent>
                     <div className="p-6 bg-gray-50 rounded-b-xl flex justify-end space-x-3">
@@ -259,7 +311,7 @@ const StopManagement = () => {
                 isSaving={isSaving}
             />
             
-            <style jsx global>{`
+            <style>{`
               @keyframes fade-in { 0% { opacity: 0; } 100% { opacity: 1; } }
               @keyframes fade-in-down { 0% { opacity: 0; transform: translateY(-10px) scale(0.98); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
               .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }

@@ -133,7 +133,16 @@ const MapView = ({ stops, highlightedRouteId }) => {
                 try {
                     const [lat, lng] = stop.location_coordinates.split(',').map(Number);
                     if (!isNaN(lat) && !isNaN(lng)) {
-                        const marker = window.L.marker([lat, lng]).addTo(mapInstance.current).bindPopup(`<b>${stop.stop_name}</b>`);
+                        const marker = window.L.marker([lat, lng])
+                            .addTo(mapInstance.current)
+                            .bindPopup(`<b>${stop.stop_name}</b>`)
+                            // FIX: Add a permanent tooltip to show the stop name directly on the map
+                            .bindTooltip(stop.stop_name, {
+                                permanent: true,
+                                direction: 'top',
+                                offset: [0, -10],
+                                className: 'map-stop-label'
+                            });
                         layersRef.current.markers.push(marker);
                         latLngs.push([lat, lng]);
                     }
@@ -232,12 +241,14 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
 
     const filteredSchedules = useMemo(() => {
         if (!selectedDestination) return [];
-        const dayOfWeek = format(selectedDate, 'EEEE');
+        const dayOfWeek = format(selectedDate, 'EEE');
         
         return schedules.filter(schedule => {
             const route = routes.find(r => r.$id === schedule.route_id);
             if (!route || route.destination !== selectedDestination) return false;
-            const operatingDays = schedule.day_of_week.split(',');
+            
+            const operatingDays = schedule.day_of_week.split(',').map(day => day.trim());
+            
             return (operatingDays.includes(dayOfWeek) || operatingDays.includes('Everyday'));
         }).map(schedule => ({
             ...schedule,
@@ -295,6 +306,19 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
 
     return (
         <div className="space-y-6">
+            <style>{`
+                .map-stop-label {
+                    background-color: rgba(255, 255, 255, 0.85);
+                    border: 1px solid rgba(0, 0, 0, 0.2);
+                    border-radius: 4px;
+                    padding: 2px 6px;
+                    font-size: 10px;
+                    font-weight: bold;
+                    color: #333;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    white-space: nowrap;
+                }
+            `}</style>
             <Card className="bg-white rounded-xl shadow-md">
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold text-gray-800">Find & Book Your Bus</CardTitle>
