@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 // Icons
@@ -133,16 +132,7 @@ const MapView = ({ stops, highlightedRouteId }) => {
                 try {
                     const [lat, lng] = stop.location_coordinates.split(',').map(Number);
                     if (!isNaN(lat) && !isNaN(lng)) {
-                        const marker = window.L.marker([lat, lng])
-                            .addTo(mapInstance.current)
-                            .bindPopup(`<b>${stop.stop_name}</b>`)
-                            // FIX: Add a permanent tooltip to show the stop name directly on the map
-                            .bindTooltip(stop.stop_name, {
-                                permanent: true,
-                                direction: 'top',
-                                offset: [0, -10],
-                                className: 'map-stop-label'
-                            });
+                        const marker = window.L.marker([lat, lng]).addTo(mapInstance.current).bindPopup(`<b>${stop.stop_name}</b>`).bindTooltip(stop.stop_name, { permanent: true, direction: 'top', offset: [0, -10], className: 'map-stop-label' });
                         layersRef.current.markers.push(marker);
                         latLngs.push([lat, lng]);
                     }
@@ -174,6 +164,92 @@ const MapView = ({ stops, highlightedRouteId }) => {
     return <div ref={mapRef} className="h-full w-full"></div>;
 };
 
+// --- NEW: Today's Schedule Component ---
+const TodaysScheduleCard = ({ schedule }) => {
+    const [status, setStatus] = useState('Upcoming');
+
+    useEffect(() => {
+        const updateStatus = () => {
+            const now = format(new Date(), 'HH:mm');
+            if (now >= schedule.departure_time && now <= schedule.arrival_time) {
+                setStatus('Live');
+            } else if (now > schedule.arrival_time) {
+                setStatus('Completed');
+            } else {
+                setStatus('Upcoming');
+            }
+        };
+
+        updateStatus();
+        const timer = setInterval(updateStatus, 60000); // Update every minute
+        return () => clearInterval(timer);
+    }, [schedule.departure_time, schedule.arrival_time]);
+
+    const statusStyles = {
+        Live: 'bg-green-100 text-green-800',
+        Upcoming: 'bg-blue-100 text-blue-800',
+        Completed: 'bg-gray-100 text-gray-700',
+    };
+
+    return (
+        <Card className="bg-white border rounded-xl p-4 shadow-sm">
+            <div className="flex justify-between items-start">
+                <CardTitle className="text-base font-bold text-gray-800 flex items-center">
+                    <Bus className="mr-2 h-5 w-5 text-indigo-500" />
+                    {schedule.busDetails?.bus_number}
+                </CardTitle>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusStyles[status]}`}>
+                    {status === 'Live' && <div className="h-2 w-2 mr-1.5 bg-green-500 rounded-full animate-pulse"></div>}
+                    {status}
+                </span>
+            </div>
+            <CardContent className="p-0 pt-3 text-sm">
+                 <p className="text-gray-600">
+                    <span className="font-semibold">Route:</span>{' '}
+                    {schedule.routeDetails?.origin} → {schedule.routeDetails?.destination}
+                </p>
+                <p className="text-gray-600">
+                    <span className="font-semibold">Time:</span>{' '}
+                    {schedule.departure_time} - {schedule.arrival_time}
+                </p>
+            </CardContent>
+        </Card>
+    );
+};
+
+const TodaysSchedules = ({ schedules, buses, routes }) => {
+    const todaysSchedules = useMemo(() => {
+        const dayOfWeek = format(new Date(), 'EEE');
+        return schedules
+            .filter(s => {
+                const operatingDays = s.day_of_week.split(',').map(day => day.trim());
+                return operatingDays.includes(dayOfWeek) || operatingDays.includes('Everyday');
+            })
+            .map(s => ({
+                ...s,
+                routeDetails: routes.find(r => r.$id === s.route_id),
+                busDetails: buses.find(b => b.$id === s.bus_id),
+            }))
+            .sort((a,b) => a.departure_time.localeCompare(b.departure_time));
+    }, [schedules, buses, routes]);
+
+    return (
+        <div className="mt-6">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">Today's Schedules</h3>
+            {todaysSchedules.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {todaysSchedules.map(s => <TodaysScheduleCard key={s.$id} schedule={s} />)}
+                </div>
+            ) : (
+                <div className="text-center py-10 text-gray-500 bg-gray-50 rounded-lg">
+                    <CalendarIcon className="mx-auto h-12 w-12 text-gray-300" />
+                    <p className="mt-2 font-medium">No buses are scheduled for today.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initialSchedules, buses: initialBuses, stops: initialStops }) => {
     const { user, showMessage } = useAuth();
@@ -184,7 +260,6 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
     const [loading, setLoading] = useState(!initialRoutes);
     const [error, setError] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedDestination, setSelectedDestination] = useState('');
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
     const [selectedScheduleForBooking, setSelectedScheduleForBooking] = useState(null);
@@ -219,44 +294,44 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
         }
     }, []);
 
-    const filteredDestinations = useMemo(() => {
+    const filteredSchedules = useMemo(() => {
+        if (!searchQuery.trim()) return [];
         const lowerCaseQuery = searchQuery.toLowerCase();
-        if (!lowerCaseQuery) {
-            return [...new Set(routes.map(route => route.destination))].sort();
-        }
-        
-        const routeIdsFromStops = new Set(
-            stops.filter(stop => stop.stop_name.toLowerCase().includes(lowerCaseQuery)).map(stop => stop.route_id)
-        );
+        const dayOfWeek = format(selectedDate, 'EEE');
 
-        const destinations = new Set();
+        const routeIdToMatchReason = new Map();
         routes.forEach(route => {
-            if (route.destination.toLowerCase().includes(lowerCaseQuery) || routeIdsFromStops.has(route.$id)) {
-                destinations.add(route.destination);
+            if (route.origin.toLowerCase().includes(lowerCaseQuery)) {
+                routeIdToMatchReason.set(route.$id, { type: 'origin', text: route.origin });
+            } else if (route.destination.toLowerCase().includes(lowerCaseQuery)) {
+                routeIdToMatchReason.set(route.$id, { type: 'destination', text: route.destination });
             }
         });
-        
-        return Array.from(destinations).sort();
-    }, [searchQuery, routes, stops]);
+        stops.forEach(stop => {
+            if (stop.stop_name.toLowerCase().includes(lowerCaseQuery)) {
+                if (!routeIdToMatchReason.has(stop.route_id)) {
+                    routeIdToMatchReason.set(stop.route_id, { type: 'stop', text: stop.stop_name });
+                }
+            }
+        });
 
-    const filteredSchedules = useMemo(() => {
-        if (!selectedDestination) return [];
-        const dayOfWeek = format(selectedDate, 'EEE');
-        
-        return schedules.filter(schedule => {
-            const route = routes.find(r => r.$id === schedule.route_id);
-            if (!route || route.destination !== selectedDestination) return false;
-            
-            const operatingDays = schedule.day_of_week.split(',').map(day => day.trim());
-            
-            return (operatingDays.includes(dayOfWeek) || operatingDays.includes('Everyday'));
-        }).map(schedule => ({
-            ...schedule,
-            routeDetails: routes.find(r => r.$id === schedule.route_id),
-            busDetails: buses.find(b => b.$id === schedule.bus_id),
-            matchReason: { type: 'destination', text: selectedDestination }
-        })).sort((a, b) => a.departure_time.localeCompare(b.departure_time));
-    }, [selectedDestination, selectedDate, schedules, routes, buses]);
+        if (routeIdToMatchReason.size === 0) return [];
+
+        return schedules
+            .filter(schedule => {
+                const isMatchingRoute = routeIdToMatchReason.has(schedule.route_id);
+                if (!isMatchingRoute) return false;
+                const operatingDays = schedule.day_of_week.split(',').map(day => day.trim());
+                return operatingDays.includes(dayOfWeek) || operatingDays.includes('Everyday');
+            })
+            .map(schedule => ({
+                ...schedule,
+                routeDetails: routes.find(r => r.$id === schedule.route_id),
+                busDetails: buses.find(b => b.$id === schedule.bus_id),
+                matchReason: routeIdToMatchReason.get(schedule.route_id)
+            }))
+            .sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+    }, [searchQuery, selectedDate, schedules, routes, buses, stops]);
 
     const stopsForSelectedRoute = useMemo(() => {
         if (filteredSchedules.length > 0) {
@@ -306,47 +381,26 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
 
     return (
         <div className="space-y-6">
-            <style>{`
-                .map-stop-label {
-                    background-color: rgba(255, 255, 255, 0.85);
-                    border: 1px solid rgba(0, 0, 0, 0.2);
-                    border-radius: 4px;
-                    padding: 2px 6px;
-                    font-size: 10px;
-                    font-weight: bold;
-                    color: #333;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                    white-space: nowrap;
-                }
-            `}</style>
+            <style>{`.map-stop-label { background-color: rgba(255, 255, 255, 0.85); border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: bold; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.1); white-space: nowrap; }`}</style>
             <Card className="bg-white rounded-xl shadow-md">
-                <CardHeader>
+                 <CardHeader>
                     <CardTitle className="text-2xl font-bold text-gray-800">Find & Book Your Bus</CardTitle>
-                    <CardDescription>Search for a destination or stop, then select it from the dropdown to see results.</CardDescription>
+                    <CardDescription>Search for a destination or stop, then select a date to find available buses.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="mb-4">
-                        <Label htmlFor="search-input" className="font-semibold text-gray-700">Search Destination or Stop</Label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                            <Input
-                                id="search-input"
-                                placeholder="e.g., GEC Circle, Campus..."
-                                className="h-11 pl-10"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="destination-select" className="font-semibold text-gray-700">Select Destination</Label>
-                            <Select onValueChange={setSelectedDestination} value={selectedDestination}>
-                                <SelectTrigger id="destination-select" className="h-11"><SelectValue placeholder="Choose a destination" /></SelectTrigger>
-                                <SelectContent>
-                                    {filteredDestinations.map((dest, index) => (<SelectItem key={index} value={dest}>{dest}</SelectItem>))}
-                                </SelectContent>
-                            </Select>
+                            <Label htmlFor="search-input" className="font-semibold text-gray-700">Search Destination or Stop</Label>
+                             <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                <Input
+                                    id="search-input"
+                                    placeholder="e.g., GEC Circle, Campus..."
+                                    className="h-11 pl-10"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
                         </div>
                         <div>
                             <Label className="font-semibold text-gray-700">Select Date</Label>
@@ -364,14 +418,14 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
                 </CardContent>
             </Card>
 
-            {selectedDestination && (
+            {searchQuery ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-1 space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-800">Available Schedules</h3>
+                        <h3 className="text-lg font-semibold text-gray-800">Search Results for "{searchQuery}"</h3>
                         {filteredSchedules.length > 0 ? (
                             filteredSchedules.map(schedule => <ScheduleCard key={schedule.$id} schedule={schedule} onBook={handleBookSeatClick} isBooking={isBooking && selectedScheduleForBooking?.$id === schedule.$id} onHover={setHighlightedRouteId} onLeave={() => setHighlightedRouteId(null)} searchQuery={searchQuery} />)
                         ) : (
-                            <p className="text-center text-gray-500 py-8 bg-gray-50 rounded-lg">No schedules found for this destination on the selected date.</p>
+                            <p className="text-center text-gray-500 py-8 bg-gray-50 rounded-lg">No schedules found.</p>
                         )}
                     </div>
                     <div className="lg:col-span-2">
@@ -383,6 +437,8 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
                         </div>
                     </div>
                 </div>
+            ) : (
+                 <TodaysSchedules schedules={schedules} buses={buses} routes={routes} />
             )}
             
             <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
