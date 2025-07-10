@@ -1,4 +1,6 @@
-//This is the config file to make the project more modular all the needed enviroment keys are called here and exported so that we can use them from anywhere
+// lib/appwrite/config.js
+
+// This is the config file to make the project more modular all the needed environment keys are called here and exported so that we can use them from anywhere
 
 import { Account, Client, Databases } from "appwrite"
 
@@ -12,7 +14,9 @@ export const appwriteConfig ={
   busesCollectionId: import.meta.env.VITE_APPWRITE_BUSES_COLLECTION_ID,
   stopsCollectionId: import.meta.env.VITE_APPWRITE_STOPS_COLLECTION_ID,
   reservationCollectionId: import.meta.env.VITE_APPWRITE_RESERVATIONS_COLLECTION_ID,
-
+  // ADD THIS LINE:
+  studentProfilesCollectionId: import.meta.env.VITE_APPWRITE_STUDENT_PROFILES_COLLECTION_ID,
+  announcementsCollectionId: import.meta.env.VITE_APPWRITE_ANNOUNCEMENT_COLLECTION_ID,
 }
 
 export const client = new Client();
