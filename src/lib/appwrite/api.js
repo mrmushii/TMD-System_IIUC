@@ -1,7 +1,5 @@
 // lib/appwrite/api.js
 
-// Corrected: ID and Query are imported directly from 'appwrite'
-// account, databases, and appwriteConfig are imported from './config'
 import { ID, Query } from 'appwrite';
 import { account, databases, appwriteConfig } from './config';
 
@@ -387,7 +385,7 @@ export const dbApi = {
                 Query.equal('bus_id', busId),
                 Query.equal('schedule_id', scheduleId),
                 Query.equal('reservation_date', reservationDate),
-                Query.equal('status', 'Booked') // Only count 'Booked' reservations
+                Query.equal('status', 'Booked')
             ]
         );
         return response.documents;
@@ -419,48 +417,62 @@ export const dbApi = {
         );
     },
 
-     /**
+    // --- Announcement Management (NEW) ---
+    /**
      * Creates a new announcement.
-     * @param {object} announcementData - { title, message, date }
+     * @param {object} announcementData - { title: string, message: string, bus_id?: string, route_id?: string, is_active?: boolean }
      * @returns {Promise<object>} Created announcement document.
      */
     createAnnouncement: async (announcementData) => {
         return await databases.createDocument(
             appwriteConfig.databaseId,
-            appwriteConfig.announcementsCollectionId, // Ensure this ID is in your config
+            appwriteConfig.announcementsCollectionId,
             ID.unique(),
-            announcementData
+            { ...announcementData, timestamp: new Date().toISOString(), is_active: true } // Ensure timestamp and is_active are set
         );
     },
-
     /**
-     * Fetches all announcements, sorted by most recent.
+     * Fetches all announcements.
      * @returns {Promise<object[]>} Array of announcement documents.
      */
-    getAnnouncements: async () => {
+    getAllAnnouncements: async () => {
         const response = await databases.listDocuments(
             appwriteConfig.databaseId,
             appwriteConfig.announcementsCollectionId,
-            [Query.orderDesc('$createdAt'), Query.limit(10)] // Get latest 10
+            [Query.orderDesc('timestamp')]
         );
         return response.documents;
     },
-
+    /**
+     * Fetches the latest active announcement.
+     * @returns {Promise<object|null>} Latest active announcement document or null.
+     */
+    getLatestAnnouncement: async () => {
+        const response = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.announcementsCollectionId,
+            [
+                Query.equal('is_active', true),
+                Query.orderDesc('timestamp'),
+                Query.limit(1)
+            ]
+        );
+        return response.documents.length > 0 ? response.documents[0] : null;
+    },
     /**
      * Updates an existing announcement.
      * @param {string} announcementId - ID of the announcement to update.
-     * @param {object} announcementData - Updated announcement data.
+     * @param {object} data - Updated announcement data.
      * @returns {Promise<object>} Updated announcement document.
      */
-    updateAnnouncement: async (announcementId, announcementData) => {
+    updateAnnouncement: async (announcementId, data) => {
         return await databases.updateDocument(
             appwriteConfig.databaseId,
             appwriteConfig.announcementsCollectionId,
             announcementId,
-            announcementData
+            data
         );
     },
-
     /**
      * Deletes an announcement.
      * @param {string} announcementId - ID of the announcement to delete.
@@ -474,6 +486,3 @@ export const dbApi = {
         );
     },
 };
-
-
-
