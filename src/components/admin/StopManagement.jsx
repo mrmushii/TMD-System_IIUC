@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../App'; // Adjust path as necessary
 import { dbApi } from '../../lib/appwrite/api'; // Adjust path as necessary
+import { Query } from 'appwrite'; 
 
 // shadcn/ui components
 import { Button } from '@/components/ui/button';
@@ -205,11 +206,48 @@ const StopManagement = () => {
     const handleSaveStop = async (formData) => {
         setIsSaving(true);
         try {
+            // Prepare the data for the current stop (new or updated)
             const dataToSave = {
                 ...formData,
-                sequence_no: parseInt(formData.sequence_no, 10),
+                sequence_no: parseInt(formData.sequence_no, 10), // Ensure sequence_no is an integer
             };
 
+            const newSequenceNumber = dataToSave.sequence_no;
+            const targetRouteId = dataToSave.route_id;
+
+            // --- CORRECTED LOGIC: Handle re-sequencing of existing stops ---
+            if (targetRouteId && targetRouteId !== 'none') {
+                // 1. Fetch all existing stops for the target route
+                const existingStopsOnRoute = await dbApi.getStops([
+                    Query.equal('route_id', targetRouteId),
+                    // No need for orderAsc here, filtering will handle it
+                ]);
+
+                // 2. Determine which stops need their sequence numbers incremented
+                const stopsToShift = existingStopsOnRoute.filter(s => {
+                    // Condition 1: Its sequence number must be greater than or equal to the new/target sequence
+                    const meetsSequenceCriteria = s.sequence_no >= newSequenceNumber;
+
+                    // Condition 2: It must NOT be the stop we are currently adding/editing.
+                    // This is crucial: if 'editingStop' exists, we exclude the stop being edited by its ID.
+                    // If 'editingStop' is null (i.e., adding a new stop), this condition is always true for existing stops.
+                    const isNotCurrentStopBeingEdited = !editingStop || s.$id !== editingStop.$id;
+
+                    return meetsSequenceCriteria && isNotCurrentStopBeingEdited;
+                });
+
+                // 3. Increment the sequence number for each affected stop in Appwrite
+                await Promise.all(
+                    stopsToShift.map(async (stopToShift) => {
+                        await dbApi.updateStop(stopToShift.$id, {
+                            sequence_no: stopToShift.sequence_no + 1,
+                        });
+                    })
+                );
+            }
+            // --- END CORRECTED LOGIC ---
+
+            // 4. Now, save the current stop (either create new or update existing)
             if (editingStop) {
                 await dbApi.updateStop(editingStop.$id, dataToSave);
                 showMessage('success', 'Stop updated successfully!');
@@ -217,8 +255,9 @@ const StopManagement = () => {
                 await dbApi.createStop(dataToSave);
                 showMessage('success', 'Stop added successfully!');
             }
+
             handleCloseModal();
-            fetchData();
+            fetchData(); // Re-fetch all data to ensure the UI reflects all changes
         } catch (error) {
             console.error("Error saving stop:", error);
             showMessage('error', `Failed to save stop: ${error.message}`);

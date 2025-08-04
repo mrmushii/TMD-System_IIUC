@@ -180,12 +180,14 @@ export const dbApi = {
 
     /**
      * Fetches all stop entries.
+     * @param {Array} [queries=[]] - Optional array of Appwrite Query objects (e.g., [Query.equal('route_id', 'someId')]).
      * @returns {Promise<object[]>} Array of stop documents.
      */
-    getStops: async () => {
+    getStops: async (queries = []) => {
         const response = await databases.listDocuments(
             appwriteConfig.databaseId,
-            appwriteConfig.stopsCollectionId
+            appwriteConfig.stopsCollectionId,
+            queries
         );
         return response.documents;
     },
