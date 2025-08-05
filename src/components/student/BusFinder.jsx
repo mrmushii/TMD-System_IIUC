@@ -65,11 +65,13 @@ const ScheduleCard = ({ schedule, onBook, isBooking, onHover, onLeave, searchQue
         </div>
         <Button
             onClick={() => onBook(schedule)}
-            disabled={isBooking}
-            className="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg shadow-sm transition-all"
+            // FIX: Disable the button if there's no bus assigned to the schedule
+            disabled={isBooking || !schedule.busDetails}
+            className="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg shadow-sm transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
             {isBooking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Ticket className="mr-2 h-4 w-4" />}
-            {isBooking ? 'Booking...' : 'Book Seat'}
+            {/* FIX: Change button text based on booking state or if a bus is assigned */}
+            {isBooking ? 'Booking...' : (!schedule.busDetails ? 'Bus Not Assigned' : 'Book Seat')}
         </Button>
     </Card>
 );
@@ -348,6 +350,14 @@ const BusFinder = ({ onReservationMade, routes: initialRoutes, schedules: initia
 
     const handleConfirmBooking = async () => {
         if (!user || !selectedScheduleForBooking || !selectedDate || isBooking) return;
+
+        // FIX: Add a guard clause to ensure a bus is assigned before proceeding.
+        if (!selectedScheduleForBooking.busDetails) {
+            showMessage('error', 'This schedule does not have a bus assigned and cannot be booked.');
+            setIsBookingModalOpen(false);
+            return;
+        }
+
         setIsBooking(true);
         const formattedDate = format(selectedDate, 'yyyy-MM-dd');
         try {
