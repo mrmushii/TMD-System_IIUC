@@ -165,6 +165,3 @@ npm run dev
 
 
 The application will be available at http://localhost:5173.
-
-👥 System Architecture
-A high-level block diagram of the system architecture.
