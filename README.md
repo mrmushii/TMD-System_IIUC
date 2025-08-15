@@ -1,11 +1,14 @@
 # Easy way to use
 
 For everyone's easy access:
-Admin login- id: admin@gmail.com
-             pass: 11111111
-User login- id: dummy1@gmail.com
-            pass: 00000000
 
+Admin login- id: admin@gmail.com.
+
+             pass: 00000000
+          
+User login- id: dummy1@gmail.com
+
+            pass: 11111111
 
 # React + Vite
 
