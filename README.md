@@ -1,3 +1,12 @@
+# Easy way to use
+
+For everyone's easy access:
+Admin login- id: admin@gmail.com
+             pass: 11111111
+User login- id: dummy1@gmail.com
+            pass: 00000000
+
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
